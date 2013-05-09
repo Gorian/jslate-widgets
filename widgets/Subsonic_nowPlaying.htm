@@ -1,0 +1,85 @@
+<!-- Subsonic now playing widget. Courtesy of Gorian -->
+<div id="subsonic_001">
+    <span id="status" style="color: white; text-shadow: -1px 0 black, 0 1px black,1px 0 black, 0 -1px black; margin-left: 5px;"></span><br>
+    <div id="data_input" style="color: white; text-shadow: -1px 0 black, 0 1px black,1px 0 black, 0 -1px black; margin-left: 5px;">Loading data...</div>
+</div>
+<script type="text/javascript">
+$(function(){
+  var containerID = "#subsonic_001", // we use this to target element outside this widget by finding our "parent"
+        widgetTitle = "Subsonic - Now Playing"; // this will be the title shown on the widget "box"
+    $(containerID).parent().parent().find('div.header').css("text-align","center")
+    $(containerID).parent().parent().find('div.header').prepend('<strong style="margin-left: 35px">' + widgetTitle + '</strong>');
+	var server = "", // url of server I.E. http://subsonic.mydomain.tld
+		username = "", // username to authenticate to subsonic with
+		password = "", // password for user
+		rest_version = "1.9.0", // subsonic requires a rest api version. As of this widget, 1.9.0 is the latest to use with subsonic
+		client = "jslate", // subsonic requires to identify the "client"
+		data_format = "json"; // we are getting our data via json. This is important, as subsonic returns xml by default
+	var i = 0;
+    
+	function getURL(method, extraParams) {
+		var encodedString = encodeURIComponent("?u=" + username + "&p=" + password + "&v=" + rest_version + "&c=" + client + "&f=" + data_format);
+		if(extraParams != null){
+			encodedString = encodedString + encodeURIComponent(extraParams);
+		}
+        var result = "/proxy.php?url=" + server + "/rest/" + method + ".view" + encodedString;
+		return result;
+	}
+    
+    function getServerStatus() {
+        var url = getURL("ping");
+        $.getJSON(url,
+        function(data){
+            var status = data['subsonic-response'].status;
+			var statusText = "";
+            if (status == "ok"){
+				statusText = "online";
+            } else {
+				statusText = "offline";
+            }
+            $('#status').html("Status: Server is " + statusText);
+        });
+    }
+    
+    function displayData(DATA) {
+		var playerNameText = "";
+		if (typeof(DATA.playerName) != "undefined"){
+			playerNameText = "@" + DATA.playerName;
+		}
+		var htmlData = "<div id=\"info\"><br>" + DATA.username + playerNameText + "<br>" + DATA.title + " - " + DATA.artist + "<br>(" + DATA.minutesAgo + " minutes ago)</div>";
+		$('#data_input').html(htmlData);
+		var image = server + "/rest/getCoverArt.view?u=" + username + "&p=" + password + "&v=" + rest_version + "&c=" + client + "&id=" + DATA.id;
+		$(containerID).parent().css("background-image", "url(" + image + ")");
+		$(containerID).parent().css("background-size", "cover");
+	}
+    
+    function notPlaying() {
+		$('#data_input').html("No music is currently playing");
+	}
+    
+    function getNowPlaying() {
+        var url = getURL("getNowPlaying");
+        $.getJSON(url,
+        function(data){
+            var nowPlayingData = null; // give nowPlayingData a default value, so it isn't undefined
+            nowPlaying_Data = data['subsonic-response'].nowPlaying.entry;
+			/* we have to account for undesired json output by subsonic, that is an array
+			if there are more than one song currently playing, but NOT an array if one or
+			less */	
+            if (nowPlaying_Data == null) {
+            	notPlaying();
+			} else if (typeof(nowPlaying_Data.title) != "undefined"){
+				displayData(nowPlaying_Data);
+			} else {
+				displayData(nowPlaying_Data[i]);
+				i++;
+				if(i > nowPlaying_Data.length -1){i=0;}
+            }
+        });
+    }
+    getServerStatus();
+    getNowPlaying();
+	setInterval(getServerStatus,900000); // every 15 minutes
+	setInterval(getNowPlaying,30000); // every 30 seconds
+});
+</script>
